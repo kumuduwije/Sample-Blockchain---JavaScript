@@ -1,4 +1,6 @@
 const SHA256 = require('crypto-js/sha256');
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1');
 
 
 class Transaction{
@@ -6,6 +8,33 @@ class Transaction{
         this.fromAddress = fromAddress;
         this.toAddress = toAddress;
         this.amount = amount;
+    }
+
+    calculateHash(){
+        return SHA256(this.fromAddress + this.toAddress + this.amount).toString();
+    }
+
+    signTransaction(signingKey){
+
+        if(signingKey.getPublic('hex') !== this.fromAddress){
+            throw new Error("You can't make transcations for other wallets!");
+        }
+
+        const hashTx = this.calculateHash();
+        const signature = signingKey.sign(hashTx, 'base64');
+        this.signature = signature.toDER('hex');
+    }
+
+    isValid(){
+        if(this.fromAddress === null) return true;
+
+        if(!this.signature || this.signature.length === 0){
+            throw new Error("No signature in this transaction");
+        }
+
+        const publicKey = ec.keyFromPublic(this.fromAddress, 'hex');
+        return publicKey.verify(this.calculateHash(), this.signature);
+
     }
 }
 
@@ -31,6 +60,14 @@ class Block {
         }
         console.log("Block mined: " + this.hash);
     }
+    hasValidTransactions() {
+        for(const tx of this.transaction) {
+            if(!tx.isValid()) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 class BlockChain {
@@ -52,6 +89,9 @@ class BlockChain {
 
     minePendingTransactions(miningRewardAddress){
 
+        const rewardTx = new Transaction(null, miningRewardAddress, this.miningReward);
+        this.pendingTransctions.push(rewardTx);
+
         let block = new Block(this.chain.length, Date.now(), this.pendingTransctions);
         block.mineBlock(this.difficulty);
 
@@ -63,7 +103,16 @@ class BlockChain {
         ];
     }
 
-    createTransaction(transaction){
+    addTransaction(transaction){
+
+        if(!transaction.fromAddress || !transaction.toAddress){
+            throw new Error('fromAddress and toAddress are required');
+        }
+
+        if(!transaction.isValid()){
+            throw new Error('Cannot add invalid transaction to chain');
+        }
+
         this.pendingTransctions.push(transaction);
     }
 
@@ -94,24 +143,33 @@ class BlockChain {
     //     this.chain.push(newBlock);
     // }
 
-    isChainValid(){
-        for(let i=1; i < this.chain.length; i++){
+    isChainValid() {
+        
+    
+        // Check the remaining blocks on the chain to see if there hashes and
+        // signatures are correct
+        for (let i = 1; i < this.chain.length; i++) {
+          const currentBlock = this.chain[i];
+          const previousBlock = this.chain[i - 1];
+    
+          if (!currentBlock.hasValidTransactions()) {
+            return false;
+          }
 
-            const currentBlock = this.chain[i];
-            const previousBlock = this.chain[i-1];
-            
-            if(currentBlock.hash !== currentBlock.calculateHash()){
-                return false;
-            }
-            // Check if the previous block's hash matches the current block's previous hash
-            if(currentBlock.previousHash !== previousBlock.hash){
-                return false;
-            }
+          if (currentBlock.hash !== currentBlock.calculateHash()) {
+            return false;
+          }
+    
+          if (currentBlock.previousHash === previousBlock.calculateHash()) {
+            return false;
+          }
         }
-
         return true;
+        
+    
+      }
     }
-}
+    
 
 module.exports.BlockChain = BlockChain;
 module.exports.Transaction = Transaction;

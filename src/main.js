@@ -1,20 +1,37 @@
 const {BlockChain, Transaction} = require('./blockchain.js');
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1');
 
-let kayChain = new BlockChain();
-kayChain.createTransaction(new Transaction("address1", "address2", 100));
-kayChain.createTransaction(new Transaction("address2", "address1", 50));
+
+const myKey = ec.keyFromPrivate("7c4c45907dec40c91bab3480c39032e90049f1a44f3e18c3e07c23e3273995cf");
+const myWalletAddress = myKey.getPublic("hex");
+
+let kayCoin = new BlockChain();
+
+const tx1 = new Transaction(myWalletAddress, 'public key goes here', 10);
+tx1.signTransaction(myKey);
+kayCoin.addTransaction(tx1);
+
 
 console.log('\n Starting the miner...');
-kayChain.minePendingTransactions("kumudu-address");
+kayCoin.minePendingTransactions(myWalletAddress);
 
-console.log('\nBalance of Kumudu is', kayChain.getBalaceOfAddress("kumudu-address"));
+console.log('\nBalance of Kumudu is', kayCoin.getBalaceOfAddress(myWalletAddress));
 
 
+console.log("Is chain valid?:"+kayCoin.isChainValid());
 
-console.log('\n Starting the miner again...');
-kayChain.minePendingTransactions("kumudu-address");
+// After tempering the chain, it will become invalid
+console.log("Changing the 2nd block data.");
+kayCoin.chain[1].data = { amount: 100 };
+console.log("Is chain valid?:"+kayCoin.isChainValid());
 
-console.log('\nBalance of Kumudu is', kayChain.getBalaceOfAddress("kumudu-address"));
+// kayCoin.createTransaction(new Transaction("address1", "address2", 100));
+// kayCoin.createTransaction(new Transaction("address2", "address1", 50));
+
+// console.log('\n Starting the miner again...');
+// kayCoin.minePendingTransactions("kumudu-address");
+// console.log('\nBalance of Kumudu is', kayCoin.getBalaceOfAddress("kumudu-address"));
 
 // Creating 3 blocks for the chain
 // console.log("Block 1 mining...");
